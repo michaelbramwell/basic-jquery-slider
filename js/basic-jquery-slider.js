@@ -47,7 +47,11 @@
 				// Allow navigation with arrow keys
                 keyboardNav: true,
 				// Use image title text as caption
-                useCaptions: true 
+                useCaptions: true,
+                fader: $("#fader"),
+                mask: $("#mask"),
+                bgImgIdentifier: 'data-bgsrc',
+                bgFadeIn: 800,
             },
             $container = this,
             $slider = $container.find('.bjqs'),
@@ -60,7 +64,8 @@
             next = 0,
             $active = slides.eq(current),
             forward = 'forward',
-            back = 'backward';
+            back = 'backward',
+            currentKey = 0;
 
         // Overwrite the defaults with the provided options (if any)
         settings = $.extend({}, defaults, options);
@@ -94,6 +99,7 @@
             // Bind click events to the controllers
             $next.click(function (e) {
                 e.preventDefault();
+                currentKey = 0;
                 if (!animating) {
                     bjqsGo(forward, false);
                 }
@@ -101,6 +107,7 @@
 
             $previous.click(function (e) {
                 e.preventDefault();
+                currentKey = 0;
                 if (!animating) {
                     bjqsGo(back, false);
                 }
@@ -142,6 +149,7 @@
 
                 $marker.click(function (e) {
                     e.preventDefault();
+                    currentKey = key;
                     if (!$(this).hasClass('active-marker') && !animating) {
                         bjqsGo(false, key);
                     }
@@ -166,7 +174,8 @@
         if (settings.keyboardNav && slideCount > 1) {
 
             $(document).keyup(function (event) {
-
+                currentKey = 0;
+                
                 if (!paused) {
                     clearInterval(bjqsInterval);
                     paused = true;
@@ -264,7 +273,57 @@
             $slider.appendTo($wrapper);
 
         }
+        
+        // set background image
+        var _setBackground = function (pos, direction, init) {
+             var slideBgImg = "";
+             var oldPos = pos;
+             
+             if (currentKey > 0) // marker has been clicked
+                 pos = currentKey;
+             
+             // find gb image to preload
+             slideBgImg = $slider.find("li").eq(pos).attr(settings.bgImgIdentifier);
+             
+             // get previous image for masking
+             var oldImgPos = (direction == "forward") ? (oldPos - 1) : (oldPos + 1);
+             var slideBgImg2 = $slider.find("li").eq(oldImgPos).attr(settings.bgImgIdentifier);
+             
+             // set the elements
+             var $body = settings.fader;
+             var $body2 = settings.mask;
+             
+             //preload current bg image
+             var bgPreloadImage = new Image();
+             bgPreloadImage.src = slideBgImg;
+             
+             // preload previous bg image
+             var bgPreloadImage2 = new Image();
+             bgPreloadImage2.src = slideBgImg2;
 
+             //current image to fade in
+             $(bgPreloadImage).load(function () {
+                $body.hide().css({
+                    'background-image': 'url(' + bgPreloadImage.src + ')',
+                    'height': bgPreloadImage.height
+                }).fadeIn(settings.bgFadeIn);
+              });
+
+              // previous image as mask
+              $(bgPreloadImage2).load(function () {
+
+                // don't show mask on init e.g page load
+                if (!init)
+                    $body2.show();
+
+                    $body2.css({
+                        'background-image': 'url(' + bgPreloadImage2.src + ')',
+                        'height': bgPreloadImage.height
+                    });
+               });
+
+         }
+        
         // Check position to see if we're at the first or last slide and update 'next' accordingly
         var checkPosition = function (direction) {
 
@@ -302,7 +361,10 @@
         // Show the first slide	
         slides.eq(current).show();
         $slider.show();
-
+        
+        // set intial background
+         _setBackground((current + 1), "forward", true);
+        
         // What comes next? Hey, Bust a move!
         var bjqsGo = function (direction, position) {
 
@@ -317,7 +379,11 @@
                     }
 
                     animating = true;
-
+                    
+                    // set background
+                    pos = (direction == "forward") ? (slidePosition + 1) : (slidePosition - 1);
+                    _setBackground(pos, direction, false);
+                    
                     if (settings.animation === 'fade') {
 
                         if (settings.showMarkers) {
